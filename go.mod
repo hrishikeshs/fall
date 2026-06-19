@@ -1,4 +1,4 @@
-module fall
+module github.com/hrishikeshs/fall
 
 go 1.26.1
 

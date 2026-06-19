@@ -1,0 +1,141 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+)
+
+func cmdServe(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: fall serve <start|stop|status|restart>\n")
+		os.Exit(2)
+	}
+
+	switch args[0] {
+	case "start":
+		serveStart()
+	case "stop":
+		serveStop()
+	case "status":
+		serveStatus()
+	case "restart":
+		serveStop()
+		serveStart()
+	default:
+		fmt.Fprintf(os.Stderr, "Usage: fall serve <start|stop|status|restart>\n")
+		os.Exit(2)
+	}
+}
+
+func serveStart() {
+	if isRunning() {
+		pid, _ := readPID()
+		fmt.Printf("already running (pid %d)\n", pid)
+		return
+	}
+
+	server := findServer()
+	if server == "" {
+		fmt.Fprintf(os.Stderr, "fall: zoekt-webserver not found\n")
+		fmt.Fprintf(os.Stderr, "Install it: go install github.com/sourcegraph/zoekt/cmd/zoekt-webserver@latest\n")
+		os.Exit(1)
+	}
+
+	indexDir := defaultIndexDir()
+	os.MkdirAll(indexDir, 0755)
+
+	listen := os.Getenv("FALL_SERVE_LISTEN")
+	if listen == "" {
+		listen = ":6070"
+	}
+
+	cmd := exec.Command(server, "-listen", listen, "-index", indexDir, "-rpc")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "fall: failed to start server: %v\n", err)
+		os.Exit(1)
+	}
+
+	writePID(cmd.Process.Pid)
+	fmt.Printf("started on %s (pid %d)\n", listen, cmd.Process.Pid)
+}
+
+func serveStop() {
+	pid, err := readPID()
+	if err != nil || !isRunning() {
+		removePID()
+		fmt.Println("not running")
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err == nil {
+		proc.Signal(syscall.SIGTERM)
+	}
+	removePID()
+	fmt.Printf("stopped (pid %d)\n", pid)
+}
+
+func serveStatus() {
+	if isRunning() {
+		pid, _ := readPID()
+		indexDir := defaultIndexDir()
+		shards, _ := filepath.Glob(filepath.Join(indexDir, "*.zoekt"))
+		fmt.Printf("running (pid %d)\n", pid)
+		fmt.Printf("index: %s\n", indexDir)
+		fmt.Printf("shards: %d\n", len(shards))
+	} else {
+		fmt.Println("not running")
+	}
+}
+
+func pidFile() string {
+	return filepath.Join(defaultIndexDir(), "webserver.pid")
+}
+
+func readPID() (int, error) {
+	data, err := os.ReadFile(pidFile())
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(data)))
+}
+
+func writePID(pid int) {
+	os.WriteFile(pidFile(), []byte(strconv.Itoa(pid)), 0644)
+}
+
+func removePID() {
+	os.Remove(pidFile())
+}
+
+func isRunning() bool {
+	pid, err := readPID()
+	if err != nil {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return proc.Signal(syscall.Signal(0)) == nil
+}
+
+func findServer() string {
+	if p, err := exec.LookPath("zoekt-webserver"); err == nil {
+		return p
+	}
+	home, _ := os.UserHomeDir()
+	gopath := filepath.Join(home, "go", "bin", "zoekt-webserver")
+	if _, err := os.Stat(gopath); err == nil {
+		return gopath
+	}
+	return ""
+}
