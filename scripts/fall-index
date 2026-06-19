@@ -1,0 +1,40 @@
+#!/bin/zsh
+# fall-index — index all git repos under a directory for zoekt search
+# Usage: fall-index [directory]  (default: ~/workspace)
+
+set -euo pipefail
+
+SEARCH_ROOT="${1:-$HOME/workspace}"
+INDEX_DIR="${ZOEKT_INDEX_DIR:-$HOME/.zoekt}"
+
+# Find zoekt-git-index
+if command -v zoekt-git-index &>/dev/null; then
+    INDEXER=zoekt-git-index
+elif [[ -x "$HOME/go/bin/zoekt-git-index" ]]; then
+    INDEXER="$HOME/go/bin/zoekt-git-index"
+else
+    echo "error: zoekt-git-index not found. Run: go install github.com/sourcegraph/zoekt/cmd/zoekt-git-index@latest" >&2
+    exit 1
+fi
+
+mkdir -p "$INDEX_DIR"
+
+count=0
+failed=0
+
+for repo in "$SEARCH_ROOT"/*/; do
+    if [[ -d "$repo/.git" ]]; then
+        name=$(basename "$repo")
+        echo -n "indexing $name... "
+        if "$INDEXER" -index "$INDEX_DIR" "$repo" 2>/dev/null; then
+            echo "ok"
+            count=$((count + 1))
+        else
+            echo "FAILED"
+            failed=$((failed + 1))
+        fi
+    fi
+done
+
+echo ""
+echo "indexed $count repos ($failed failed) → $INDEX_DIR"
