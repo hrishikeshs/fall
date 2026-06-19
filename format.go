@@ -37,12 +37,12 @@ func formatPlain(w io.Writer, files []zoekt.FileMatch, listOnly bool) {
 	}
 }
 
-// ANSI color codes
+// Fall colors — autumn palette (256-color ANSI)
 const (
 	colorReset  = "\033[0m"
-	colorCyan   = "\033[36m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[1;33m"
+	colorPath   = "\033[38;5;208m" // burnt orange — fallen leaves
+	colorLine   = "\033[38;5;172m" // russet — bark and branches
+	colorMatch  = "\033[1;38;5;220m" // bold gold — sunlit foliage
 )
 
 // formatColor writes human-friendly output with ANSI highlighting.
@@ -50,7 +50,7 @@ func formatColor(w io.Writer, files []zoekt.FileMatch, listOnly bool) {
 	for _, f := range files {
 		repo := repoShortName(f.Repository)
 		if listOnly {
-			fmt.Fprintf(w, "%s%s/%s%s\n", colorCyan, repo, f.FileName, colorReset)
+			fmt.Fprintf(w, "%s%s/%s%s\n", colorPath, repo, f.FileName, colorReset)
 			continue
 		}
 		for _, m := range f.LineMatches {
@@ -60,8 +60,8 @@ func formatColor(w io.Writer, files []zoekt.FileMatch, listOnly bool) {
 			line := bytes.TrimRight(m.Line, "\n")
 			highlighted := highlightMatches(line, m.LineFragments)
 			fmt.Fprintf(w, "%s%s/%s%s:%s%d%s:%s\n",
-				colorCyan, repo, f.FileName, colorReset,
-				colorGreen, m.LineNumber, colorReset,
+				colorPath, repo, f.FileName, colorReset,
+				colorLine, m.LineNumber, colorReset,
 				highlighted)
 		}
 	}
@@ -87,7 +87,7 @@ func highlightMatches(line []byte, fragments []zoekt.LineFragmentMatch) string {
 		if start > prev {
 			b.Write(line[prev:start])
 		}
-		b.WriteString(colorYellow)
+		b.WriteString(colorMatch)
 		b.Write(line[start:end])
 		b.WriteString(colorReset)
 		prev = end
