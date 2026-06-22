@@ -20,6 +20,8 @@ func main() {
 		cmdAdd(os.Args[2:])
 	case "serve":
 		cmdServe(os.Args[2:])
+	case "_daemon":
+		cmdDaemon()
 	case "list":
 		cmdList()
 	case "version", "--version", "-v":

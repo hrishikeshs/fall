@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func cmdAdd(args []string) {
@@ -35,17 +36,55 @@ func cmdAdd(args []string) {
 			continue
 		}
 
-		name := filepath.Base(abs)
-		fmt.Fprintf(os.Stderr, "indexing %s... ", name)
+		trackRepo(abs)
+		indexRepo(indexer, indexDir, abs)
+	}
+}
 
-		cmd := exec.Command(indexer, "-index", indexDir, abs)
-		cmd.Stderr = nil
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED (%v)\n", err)
-		} else {
-			fmt.Fprintf(os.Stderr, "ok\n")
+func indexRepo(indexer, indexDir, repoPath string) {
+	name := filepath.Base(repoPath)
+	fmt.Fprintf(os.Stderr, "indexing %s... ", name)
+
+	cmd := exec.Command(indexer, "-index", indexDir, repoPath)
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "FAILED (%v)\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "ok\n")
+	}
+}
+
+func reposFile() string {
+	return filepath.Join(defaultIndexDir(), "repos")
+}
+
+func trackRepo(abs string) {
+	for _, r := range loadTrackedRepos() {
+		if r == abs {
+			return
 		}
 	}
+	f, err := os.OpenFile(reposFile(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintln(f, abs)
+}
+
+func loadTrackedRepos() []string {
+	data, err := os.ReadFile(reposFile())
+	if err != nil {
+		return nil
+	}
+	var repos []string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			repos = append(repos, line)
+		}
+	}
+	return repos
 }
 
 func findIndexer() string {
