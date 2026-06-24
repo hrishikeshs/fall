@@ -6,6 +6,8 @@ fall is a lightweight CLI that gives you indexed, sub-millisecond code search ac
 
 Designed for humans and AI agents alike — plain output for machines, fall-colored output for humans.
 
+![fall --colors](assets/fall-colors.png)
+
 ## Quick Start
 
 ```sh
@@ -67,18 +69,19 @@ fall add ~/work/api ~/work/web      # add multiple repos
 fall list                           # show indexed repos
 ```
 
-Re-run `fall add` after pulling changes — indexing is incremental and fast.
+### Web UI & Auto Re-indexing
 
-### Web UI
-
-fall can start zoekt's built-in web interface for visual browsing:
+`fall serve` starts a background daemon that runs zoekt's web UI and automatically re-indexes all tracked repos every 20 minutes. No cron jobs needed.
 
 ```sh
-fall serve start                    # start on :6070
+fall serve start                    # start daemon on :6070
 fall serve status                   # check if running
-fall serve stop                     # stop the server
+fall serve stop                     # stop the daemon
+fall serve restart                  # restart
 open http://localhost:6070          # browse in your browser
 ```
+
+The daemon keeps your indices fresh — just `fall add` your repos once and let it run. Set `FALL_SERVE_LISTEN` to change the port (default `:6070`).
 
 ## Search Flags
 
@@ -122,9 +125,10 @@ fall -l "migrations"              # find relevant files
 ## How It Works
 
 1. `fall add` runs `zoekt-git-index` to build trigram indices from your git repos
-2. Indices are stored in `~/.zoekt` (roughly 3× the source size)
+2. Indices are stored in `~/.zoekt` (roughly 3x the source size)
 3. `fall <query>` memory-maps the index shards and searches in microseconds
 4. No server needed for search — it reads the index files directly
+5. `fall serve start` runs a daemon that re-indexes tracked repos every 20 minutes
 
 ## License
 
